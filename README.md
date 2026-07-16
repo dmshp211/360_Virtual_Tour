@@ -1,21 +1,238 @@
 # 360° Virtual Tours
 
-Browser-based editor and viewer for 360° virtual tours. No external dependencies — built on Python stdlib and Pannellum.
+A browser-based editor and viewer for 360° virtual panoramas.  
+Zero external Python dependencies — built on standard library and [Pannellum](https://pannellum.org/).
 
-Create tours, upload panoramas, add interactive hotspots and minimaps, all from the browser.
+![Python](https://img.shields.io/badge/python-3.8%2B-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-## Quick start
-
-```bash
-python server.py
-```
-
-Open `http://localhost:3000/index.html` to view tours, `http://localhost:3000/editor.html` to edit.
+---
 
 ## Features
 
-- Browser-based tour editor with live panorama preview
-- Multi-tour viewer with scene navigation and minimap
-- File upload via multipart API (photos, minimaps)
-- JSON config storage per tour
-- Python 3.8+, zero dependencies
+- **Editor** — create tours, upload panoramas, place interactive hotspots, add minimaps
+- **Viewer** — smooth 360° navigation, scene switching, minimap with markers
+- **Server-side storage** — tours stored on disk, no database required
+- **No dependencies** — only Python 3.8+ standard library
+
+## Quick Start
+
+**Windows** — double-click `start.bat`
+or run in cmd:
+```cmd
+python server.py
+```
+
+**Linux / macOS**:
+```bash
+cd /path/to/project
+python3 server.py
+```
+
+Open in browser:
+- View tours:   `http://localhost:3000/index.html`
+- Editor:       `http://localhost:3000/editor.html`
+
+> `start.bat` is portable — it uses `%~dp0` to find `server.py` automatically wherever the project is located.
+
+## API
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/tours` | List all tours |
+| POST | `/api/tours` | Create a new tour |
+| GET | `/api/tours/:id/config` | Get tour config |
+| PUT | `/api/tours/:id/config` | Update tour config |
+| DELETE | `/api/tours/:id` | Delete a tour |
+| POST | `/api/tours/:id/upload-photo` | Upload panorama photo |
+| POST | `/api/tours/:id/upload-minimap` | Upload minimap image |
+| GET | `/api/tours/:id/photos` | List tour photos |
+| DELETE | `/api/tours/:id/photos/:file` | Delete a photo |
+
+## Structure
+
+```
+360_Virtual_Tour/
+├── server.py         # Backend server (Python)
+├── index.html        # Tour viewer
+├── editor.html       # Tour editor
+├── tours/            # Tour data stored on disk
+├── tests/            # API tests
+└── docs/             # Documentation
+```
+
+## Deploy on a Local Network Server
+
+### Step 1. Copy the project to the server
+
+Use USB, `scp`, or `git` to copy the folder.
+
+### Step 2. Start the server
+
+```bash
+cd /path/to/project
+python3 server.py --host 0.0.0.0 --port 3000
+```
+
+The site will be available at `http://<SERVER-IP>:3000/`
+
+### Step 3. Auto-start with systemd
+
+Create `/etc/systemd/system/virtual-tours.service`:
+
+```ini
+[Unit]
+Description=360 Virtual Tours Server
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/virtual-tours
+ExecStart=/usr/bin/python3 server.py --host 0.0.0.0 --port 3000
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Run:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now virtual-tours
+```
+
+## Security in Local Network
+
+### With Nginx — restrict access by IP
+
+```nginx
+server {
+    listen 80;
+    server_name tours.loc;
+
+    client_max_body_size 200M;
+
+    # Allow only local network
+    allow 192.168.1.0/24;
+    allow 127.0.0.1;
+    deny all;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}
+```
+
+If you don't have Nginx — run the server on `127.0.0.1` and use it only from the local PC
+
+> The project already has basic built-in protection: tour ID validation, `../` path traversal blocking, image-only upload (jpg/png/gif), 200 MB file limit.
+
+---
+
+# 360° Virtual Tours
+
+Веб-редактор и просмотрщик 360° Virtual Tours.  
+Никаких внешних Python-зависимостей — только стандартная библиотека и [Pannellum](https://pannellum.org/).
+
+## Возможности
+
+- **Редактор** — создание туров, загрузка панорам, расстановка интерактивных переходов, добавление схем помещений
+- **Просмотрщик** — плавная 360° навигация, переключение сцен, миникарта с маркерами
+- **Хранение на сервере** — туры сохраняются на диске, база данных не нужна
+- **Без зависимостей** — только Python 3.8+ и стандартная библиотека
+
+## Быстрый старт
+
+**Windows** — запустите двойным кликом `start.bat` или через cmd:
+```cmd
+python server.py
+```
+
+**Linux / macOS**:
+```bash
+cd /путь/к/проекту
+python3 server.py
+```
+
+Откройте в браузере:
+- Просмотр туров:   `http://localhost:3000/index.html`
+- Редактор:         `http://localhost:3000/editor.html`
+
+> `start.bat` можно перемещать вместе с папкой проекта — он использует `%~dp0` и всегда находит `server.py` в своей папке.
+
+## Развёртывание на сервере в локальной сети
+
+### Шаг 1. Перенесите проект на сервер
+
+Скачайте на проект на сервер 
+```bash
+git clone https://github.com/dmshp211/360_Virtual_Tour.git
+```
+
+### Шаг 2. Запустите
+
+```bash
+cd /путь/к/проекту
+python3 server.py --host 0.0.0.0 --port 3000
+```
+
+Сайт будет доступен по адресу `http://<IP-сервера>:3000/`
+
+### Шаг 3. Настройте автозапуск (systemd)
+
+Создайте файл `/etc/systemd/system/virtual-tours.service`:
+
+```ini
+[Unit]
+Description=360 Virtual Tours Server
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/virtual-tours
+ExecStart=/usr/bin/python3 server.py --host 0.0.0.0 --port 3000
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Выполните:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now virtual-tours
+```
+
+## Безопасность в локальной сети
+
+### Если стоит Nginx — ограничьте доступ по IP
+
+```nginx
+server {
+    listen 80;
+    server_name tours.loc;
+
+    client_max_body_size 200M;
+
+    # Разрешить только локальную сеть
+    allow 192.168.1.0/24;
+    allow 127.0.0.1;
+    deny all;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}
+```
+
+Если Nginx нет — просто запускайте сервер на `127.0.0.1` и пользуйтесь только на локальном пк.
+
+> В самом проекте уже встроена базовая защита: проверка ID туров, блокировка `../` в путях, только картинки (jpg/png/gif), лимит 200 MB на файл.
