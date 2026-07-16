@@ -10,7 +10,7 @@ Create tours, upload panoramas, add interactive hotspots and minimaps, all from 
 python server.py
 ```
 
-Open `http://localhost:3000/` to view tours, `http://localhost:3000/editor.html` to edit.
+Open `http://localhost:3000/index.html` to view tours, `http://localhost:3000/editor.html` to edit.
 
 ## Features
 
