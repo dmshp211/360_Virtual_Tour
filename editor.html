@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>360° Тур — Редактор</title>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css">
+<script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
+
+<style>
+  :root{
+    --bg:        #0b0e14;
+    --panel:     #12161f;
+    --panel-brd: rgba(255,255,255,0.09);
+    --text:      #eef0f4;
+    --text-dim:  #9aa2b1;
+    --accent:    #e8a33d;
+    --accent-dim:#a97324;
+    --danger:    #e0554f;
+    --success:   #58c76a;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; height:100%; background:var(--bg); color:var(--text); font-family:'Inter', system-ui, sans-serif; }
+  #app{ display:grid; grid-template-rows:auto 1fr; height:100%; }
+
+  h2{ font-size:12px; text-transform:uppercase; letter-spacing:.1em; color:var(--text-dim); margin:0 0 12px; }
+
+  button{
+    font-family:inherit; cursor:pointer; border-radius:8px; border:1px solid var(--panel-brd);
+    background:#1a1f2b; color:var(--text); padding:9px 12px; font-size:13px;
+  }
+  button:hover{ background:#232a38; }
+  button.primary{ background:var(--accent); border-color:var(--accent); color:#1a1200; font-weight:700; }
+  button.primary:hover{ background:#f0af52; }
+  button.danger{ background:transparent; border-color:var(--danger); color:var(--danger); }
+  button.danger:hover{ background:rgba(224,85,79,0.1); }
+  button:disabled{ opacity:.4; cursor:not-allowed; }
+  button.full{ width:100%; margin-top:10px; }
+  button.small{ padding:5px 9px; font-size:11px; }
+
+  input, select{
+    width:100%; padding:8px 10px; border-radius:7px; border:1px solid var(--panel-brd);
+    background:#0f1219; color:var(--text); font-size:13px; font-family:inherit; margin-top:4px;
+  }
+  label{ font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; display:block; margin-top:12px; }
+  .note{ font-size:11px; color:var(--text-dim); line-height:1.5; margin-top:8px; }
+  code{ background:#0f1219; padding:1px 5px; border-radius:4px; }
+
+  /* Status bar */
+  #status-bar{
+    position:fixed; top:0; left:0; right:0; z-index:200;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:6px 16px; font-size:12px; min-height:28px;
+    background:var(--panel); border-bottom:1px solid var(--panel-brd);
+  }
+  #status-bar .ok{ color:var(--success); }
+  #status-bar .warn{ color:var(--accent); }
+  #status-bar .err{ color:var(--danger); }
+  #error-banner{
+    display:none; position:fixed; top:28px; left:0; right:0; z-index:201;
+    background:var(--danger); color:#fff; padding:8px 16px; font-size:13px;
+    justify-content:space-between; align-items:center;
+  }
+  #error-banner.show{ display:flex; }
+
+  /* Tour tabs bar */
+  #tour-tabs-bar{
+    margin-top:28px;
+    display:flex; align-items:center; gap:8px; padding:10px 16px;
+    background:var(--panel); border-bottom:1px solid var(--panel-brd); overflow-x:auto;
+  }
+  #tour-tabs{ display:flex; gap:6px; flex:1; overflow-x:auto; }
+  .tour-tab{
+    flex:0 0 auto; padding:7px 13px; border-radius:8px; font-size:12px; cursor:pointer;
+    background:#1a1f2b; border:1px solid var(--panel-brd); white-space:nowrap;
+  }
+  .tour-tab.active{ background:rgba(232,163,61,0.15); border-color:var(--accent); color:var(--accent); font-weight:700; }
+  #tour-tabs-bar .divider{ width:1px; height:24px; background:var(--panel-brd); margin:0 4px; }
+
+  /* Main grid */
+  #main{ display:grid; grid-template-columns: 280px 1fr 300px; overflow:hidden; }
+
+  #sidebar-left{ background:var(--panel); border-right:1px solid var(--panel-brd); padding:16px; overflow-y:auto; }
+  .scene-row{
+    display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:8px;
+    cursor:pointer; margin-bottom:6px; border:1px solid transparent;
+  }
+  .scene-row:hover{ background:rgba(255,255,255,0.04); }
+  .scene-row.active{ border-color:var(--accent); background:rgba(232,163,61,0.08); }
+  .scene-thumb-sm{ width:44px; height:32px; border-radius:4px; background-size:cover; background-position:center; background-color:#1a1f2b; flex:0 0 auto; }
+  .scene-row-info{ flex:1; min-width:0; }
+  .scene-row-title{ font-size:13px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .scene-row-id{ font-size:11px; color:var(--text-dim); }
+
+  #center{ position:relative; display:flex; flex-direction:column; }
+  #toolbar{ padding:10px 16px; background:var(--panel); border-bottom:1px solid var(--panel-brd); display:flex; align-items:center; gap:10px; }
+  #toolbar .title{ font-weight:700; font-size:14px; flex:1; }
+  .center-tab-btn{ padding:7px 12px; font-size:12px; }
+  .center-tab-btn.active{ background:rgba(232,163,61,0.15); border-color:var(--accent); color:var(--accent); }
+
+  #panorama-view, #minimap-view, #files-view{ flex:1; position:relative; background:#05060a; }
+  #minimap-view{ display:none; align-items:center; justify-content:center; overflow:auto; }
+  #files-view{ display:none; overflow-y:auto; padding:16px; }
+  #minimap-canvas-wrap{ position:relative; max-width:100%; }
+  #minimap-canvas-img{ max-width:100%; display:block; }
+  .mm-marker{
+    position:absolute; width:22px; height:22px; border-radius:50%; background:var(--accent);
+    border:2px solid #1a1200; transform:translate(-50%,-50%); cursor:pointer;
+    display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; color:#1a1200;
+  }
+  #minimap-empty{ text-align:center; color:var(--text-dim); padding:30px; }
+
+  #hint{
+    position:absolute; top:14px; left:50%; transform:translateX(-50%);
+    background:rgba(0,0,0,0.7); padding:7px 14px; border-radius:20px; font-size:12px;
+    color:var(--text-dim); z-index:5; pointer-events:none; display:none;
+  }
+  #hint.show{ display:block; }
+  #empty-center{ flex:1; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:8px; color:var(--text-dim); text-align:center; padding:40px; }
+
+  .hs-marker{
+    width:30px; height:30px; border-radius:50%; background:rgba(232,163,61,0.9); border:2px solid #1a1200;
+    display:flex; align-items:center; justify-content:center; font-size:13px; color:#1a1200; font-weight:700; cursor:pointer;
+  }
+
+  #sidebar-right{ background:var(--panel); border-left:1px solid var(--panel-brd); padding:16px; overflow-y:auto; display:flex; flex-direction:column; }
+  .hs-row{ display:flex; align-items:center; gap:8px; padding:8px; border-radius:7px; background:#0f1219; margin-bottom:6px; font-size:12px; }
+  .hs-row .lbl{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .hs-row button{ padding:4px 8px; font-size:11px; }
+
+  #export-box{ margin-top:auto; padding-top:16px; border-top:1px solid var(--panel-brd); }
+
+  .panel-section{ padding-bottom:16px; margin-bottom:16px; border-bottom:1px solid var(--panel-brd); }
+
+  /* Progress bar */
+  .progress-wrap{ width:100%; height:6px; background:#0f1219; border-radius:3px; margin-top:6px; overflow:hidden; }
+  .progress-bar{ height:100%; width:0%; background:var(--accent); transition:width .2s linear; }
+
+  /* File list */
+  .file-row{ display:flex; align-items:center; gap:8px; padding:8px; border-radius:6px; background:#0f1219; margin-bottom:6px; font-size:12px; }
+  .file-row .name{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .file-row .size{ color:var(--text-dim); min-width:70px; text-align:right; }
+
+  /* Modal */
+  #modal-overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:100;
+    display:none; align-items:center; justify-content:center;
+  }
+  #modal-overlay.show{ display:flex; }
+  #modal-box{ background:var(--panel); border:1px solid var(--panel-brd); border-radius:12px; padding:20px; width:320px; }
+  #modal-box h3{ margin:0 0 4px; font-size:15px; }
+  #modal-actions{ display:flex; gap:8px; margin-top:16px; }
+  #modal-actions button{ flex:1; }
+</style>
+</head>
+<body>
+
+<div id="status-bar">
+  <div id="status-text">Загрузка...</div>
+  <div id="status-actions">
+    <button id="btn-retry" class="small" style="display:none;">Повторить</button>
+  </div>
+</div>
+
+<div id="error-banner">
+  <span id="error-text">Ошибка</span>
+  <button id="error-close" class="small">Закрыть</button>
+</div>
+
+<div id="app">
+  <!-- TOUR TABS -->
+  <div id="tour-tabs-bar">
+    <div id="tour-tabs"></div>
+    <div class="divider"></div>
+    <button id="btn-new-tour">+ Новый тур</button>
+    <label style="margin:0; display:inline-block;">
+      <button id="btn-import-tour-trigger" type="button">📂 Импортировать тур</button>
+      <input type="file" id="import-tour-input" accept="application/json" style="display:none;">
+    </label>
+  </div>
+
+  <div id="main">
+    <!-- LEFT: scenes -->
+    <div id="sidebar-left">
+      <h2>Точки (сцены)</h2>
+      <div id="scene-list"></div>
+      <label>Добавить панораму(ы)</label>
+      <input type="file" id="file-input" accept="image/*" multiple>
+      <div class="progress-wrap"><div id="upload-progress" class="progress-bar"></div></div>
+      <button class="full primary" id="btn-add-scene">+ Добавить точку</button>
+      <div class="note">Можно выбрать сразу несколько фото 360° — каждая станет отдельной точкой.</div>
+    </div>
+
+    <!-- CENTER -->
+    <div id="center">
+      <div id="toolbar">
+        <div class="title" id="current-scene-title">Нет активного тура</div>
+        <button class="center-tab-btn active" id="tab-panorama">🖼 Панорама</button>
+        <button class="center-tab-btn" id="tab-minimap">🗺 Миникарта</button>
+        <button class="center-tab-btn" id="tab-files">📁 Файлы</button>
+        <button id="btn-hotspot-mode" style="display:none;">🎯 Добавить переход</button>
+      </div>
+      <div id="hint">Кликните по панораме, чтобы поставить точку перехода</div>
+
+      <div id="panorama-view">
+        <div id="panorama" style="position:absolute; inset:0;"></div>
+        <div id="empty-center" style="display:none;">
+          <div style="font-size:32px;">🖼️</div>
+          <div>Создайте тур и добавьте первую панораму слева</div>
+        </div>
+      </div>
+
+      <div id="minimap-view">
+        <div id="minimap-canvas-wrap">
+          <div id="minimap-empty">
+            <p>Для этого тура ещё не загружена схема/план.</p>
+            <input type="file" id="minimap-file-input" accept="image/*">
+          </div>
+        </div>
+      </div>
+
+      <div id="files-view">
+        <h2>Загруженные файлы тура</h2>
+        <div id="files-list"></div>
+      </div>
+    </div>
+
+    <!-- RIGHT -->
+    <div id="sidebar-right">
+      <div id="panel-panorama">
+        <h2>Настройки точки</h2>
+        <div id="no-scene-note" class="note">Выберите или добавьте точку слева.</div>
+        <div id="scene-fields" style="display:none;">
+          <label>Название</label>
+          <input id="scene-title-input" placeholder="Гостиная">
+          <label>Путь к файлу</label>
+          <input id="scene-path-input" placeholder="photos/photo.jpg" readonly>
+          <button class="full danger" id="btn-delete-scene">Удалить эту точку</button>
+
+          <div class="panel-section" style="margin-top:20px;">
+            <h2>Переходы из этой точки</h2>
+            <div id="hs-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="panel-minimap" style="display:none;">
+        <h2>Точки на миникарте</h2>
+        <div id="mm-list"></div>
+        <button class="full" id="btn-change-minimap">🔄 Заменить изображение схемы</button>
+        <div class="note">Кликните по схеме слева, чтобы поставить точку и привязать её к одной из сцен тура.</div>
+      </div>
+
+      <div id="panel-files" style="display:none;">
+        <h2>Управление файлами</h2>
+        <div id="files-panel-list"></div>
+      </div>
+
+      <div id="export-box">
+        <h2>Сохранение</h2>
+        <button class="full primary" id="btn-save-now">💾 Сохранить сейчас</button>
+        <button class="full" id="btn-publish">✅ Опубликовать</button>
+        <button class="full danger" id="btn-delete-tour">🗑️ Удалить тур</button>
+        <div class="note">Конфиг автоматически сохраняется на сервере каждые 5 секунд.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div id="modal-overlay">
+  <div id="modal-box">
+    <h3 id="modal-title">Заголовок</h3>
+    <div id="modal-body"></div>
+    <div id="modal-actions">
+      <button id="modal-cancel">Отмена</button>
+      <button class="primary" id="modal-ok">ОК</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============ API ============ */
+const API = {
+  async request(method, path, body = null, progressCb = null) {
+    const url = path;
+    const opts = { method, headers: {} };
+    if (body) {
+      if (body instanceof FormData) {
+        opts.body = body;
+      } else {
+        opts.headers['Content-Type'] = 'application/json';
+        opts.body = JSON.stringify(body);
+      }
+    }
+    const resp = await fetch(url, opts);
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || !data.success) {
+      const err = new Error(data.message || `HTTP ${resp.status}`);
+      err.code = data.error || `HTTP_${resp.status}`;
+      err.response = data;
+      throw err;
+    }
+    return data;
+  },
+  async upload(method, path, formData, onProgress) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open(method, path);
+      xhr.upload.addEventListener('progress', e => {
+        if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total);
+      });
+      xhr.addEventListener('load', () => {
+        if (xhr.status < 200 || xhr.status >= 300) {
+          const data = xhr.responseText ? JSON.parse(xhr.responseText) : {};
+          const err = new Error(data.message || `HTTP ${xhr.status}`);
+          err.code = data.error || `HTTP_${xhr.status}`;
+          reject(err);
+        } else {
+          resolve(JSON.parse(xhr.responseText));
+        }
+      });
+      xhr.addEventListener('error', () => reject(new Error('Ошибка сети')));
+      xhr.send(formData);
+    });
+  }
+};
+
+/* ============ STATE ============ */
+let toursData = {};      // id -> tour object
+let tourOrder = [];
+let activeTourId = null;
+let activeSceneId = null;
+let viewer = null;
+let hotspotMode = false;
+let centerTab = 'panorama';
+let minimapPlacing = false;
+let autoSaveTimer = null;
+let pendingSave = false;
+let lastError = null;
+
+const el = id => document.getElementById(id);
+
+function slug(str){
+  return (str||'').toLowerCase().trim()
+    .replace(/[^a-z0-9а-яё]+/gi,'-').replace(/^-+|-+$/g,'') || 'item';
+}
+function safeFilename(name){
+  return (name||'').trim().replace(/[^A-Za-z0-9_.\-]+/g, '-') || 'file';
+}
+function uniqueId(base, existingObj){
+  let id = slug(base), n = 2;
+  while(existingObj[id]) id = slug(base) + '-' + (n++);
+  return id;
+}
+
+function newTourObject(title){
+  return {
+    title,
+    scenes: {},
+    sceneOrder: [],
+    sceneCounter: 0,
+    minimap: { imagePath: '', imageDataUrl: null, points: [] },
+    serverFiles: []
+  };
+}
+
+/* ============ STATUS / ERRORS ============ */
+function setStatus(text, type='ok') {
+  const s = el('status-text');
+  s.textContent = text;
+  s.className = type;
+  el('btn-retry').style.display = 'none';
+}
+function setStatusError(text, retryAction) {
+  const s = el('status-text');
+  s.textContent = text;
+  s.className = 'err';
+  const btn = el('btn-retry');
+  btn.style.display = retryAction ? 'inline-block' : 'none';
+  btn.onclick = retryAction;
+}
+function showError(text, retryAction) {
+  lastError = text;
+  el('error-text').textContent = text;
+  el('error-banner').classList.add('show');
+  setStatusError(text, retryAction);
+}
+function hideError() {
+  el('error-banner').classList.remove('show');
+  lastError = null;
+}
+el('error-close').addEventListener('click', hideError);
+
+/* ============ MODAL HELPER ============ */
+function openModal({title, bodyHtml, onOk}){
+  el('modal-title').textContent = title;
+  el('modal-body').innerHTML = bodyHtml;
+  el('modal-overlay').classList.add('show');
+  const okHandler = () => {
+    const result = onOk();
+    if(result === false) return;
+    closeModal();
+  };
+  el('modal-ok').onclick = okHandler;
+  el('modal-cancel').onclick = closeModal;
+}
+function closeModal(){ el('modal-overlay').classList.remove('show'); }
+
+function pickSceneModal({title, excludeSceneId, defaultLabel, onConfirm}){
+  const tour = toursData[activeTourId];
+  const options = tour.sceneOrder
+    .filter(id => id !== excludeSceneId)
+    .map(id => `<option value="${id}">${tour.scenes[id].title} (${id})</option>`).join('');
+  if(!options){
+    alert('Сначала добавьте ещё одну точку.');
+    return;
+  }
+  openModal({
+    title,
+    bodyHtml: `
+      <label>Ведёт в точку</label>
+      <select id="modal-scene-select">${options}</select>
+      <label>Подпись</label>
+      <input id="modal-label-input" value="${defaultLabel || ''}">
+    `,
+    onOk: () => {
+      const sceneId = el('modal-scene-select').value;
+      const label = el('modal-label-input').value.trim() || tour.scenes[sceneId].title;
+      onConfirm(sceneId, label);
+    }
+  });
+}
+
+/* ============ LOADING ============ */
+async function loadTours() {
+  setStatus('Загрузка туров...', 'warn');
+  try {
+    const data = await API.request('GET', '/api/tours');
+    toursData = {};
+    tourOrder = [];
+    (data.data.tours || []).forEach(t => {
+      toursData[t.id] = newTourObject(t.title);
+      toursData[t.id].cover = t.cover;
+      toursData[t.id].sceneCount = t.sceneCount;
+      toursData[t.id].loadedFromServer = true;
+      tourOrder.push(t.id);
+    });
+    renderTourTabs();
+    if (activeTourId && toursData[activeTourId]) {
+      await loadTour(activeTourId);
+    } else if (tourOrder.length > 0) {
+      await loadTour(tourOrder[0]);
+    } else {
+      setStatus('Нет туров. Создайте новый.', 'ok');
+    }
+  } catch (err) {
+    showError('Не удалось загрузить туры: ' + err.message, loadTours);
+  }
+}
+
+async function loadTour(tourId) {
+  setStatus('Загрузка конфига...', 'warn');
+  try {
+    const data = await API.request('GET', `/api/tours/${tourId}/config`);
+    const config = data.data;
+    const tour = toursData[tourId];
+    tour.title = config.title || tour.title;
+    tour.scenes = {};
+    tour.sceneOrder = [];
+    tour.minimap = { imagePath: '', imageDataUrl: null, points: [] };
+    tour.sceneCounter = 0;
+
+    const sceneIds = Object.keys(config.scenes || {});
+    sceneIds.forEach(sid => {
+      const sc = config.scenes[sid];
+      tour.sceneCounter++;
+      const url = sc.panorama ? `/tours/tour-${tourId}/${sc.panorama}` : null;
+      tour.scenes[sid] = {
+        title: sc.title || sid,
+        panorama: sc.panorama || '',
+        dataUrl: url,
+        hotSpots: (sc.hotSpots || []).filter(h => h.type === 'scene').map(h => ({
+          pitch: h.pitch, yaw: h.yaw, sceneId: h.sceneId, text: h.text
+        }))
+      };
+      tour.sceneOrder.push(sid);
+    });
+
+    if (config.minimap) {
+      tour.minimap.imagePath = config.minimap.image || '';
+      tour.minimap.points = (config.minimap.points || []).map(p => ({
+        sceneId: p.sceneId, x: p.x, y: p.y, label: p.label
+      }));
+      if (tour.minimap.imagePath) {
+        tour.minimap.imageDataUrl = `/tours/tour-${tourId}/${tour.minimap.imagePath}`;
+      }
+    }
+
+    await loadFiles(tourId);
+    selectTour(tourId);
+    setStatus('Загружено', 'ok');
+  } catch (err) {
+    showError('Не удалось загрузить тур: ' + err.message, () => loadTour(tourId));
+  }
+}
+
+async function loadFiles(tourId) {
+  try {
+    const data = await API.request('GET', `/api/tours/${tourId}/photos`);
+    toursData[tourId].serverFiles = data.data.photos || [];
+    renderFiles();
+  } catch (err) {
+    console.warn('loadFiles error', err);
+  }
+}
+
+/* ============ SAVE / AUTOSAVE ============ */
+function buildTourJson(tour){
+  const out = {
+    title: tour.title,
+    default: { firstScene: tour.sceneOrder[0] || '', sceneFadeDuration: 1000, autoLoad: true },
+    scenes: {}
+  };
+  tour.sceneOrder.forEach(id => {
+    const s = tour.scenes[id];
+    out.scenes[id] = {
+      title: s.title, type: 'equirectangular', panorama: s.panorama,
+      hotSpots: s.hotSpots.map(h => ({ pitch: h.pitch, yaw: h.yaw, type: 'scene', text: h.text, sceneId: h.sceneId }))
+    };
+  });
+  if(tour.minimap.imagePath && tour.minimap.points.length > 0){
+    out.minimap = {
+      image: tour.minimap.imagePath,
+      points: tour.minimap.points.map(p => ({ sceneId: p.sceneId, x: Math.round(p.x*100)/100, y: Math.round(p.y*100)/100, label: p.label }))
+    };
+  }
+  return out;
+}
+
+async function saveCurrentTour(force = false) {
+  if (!activeTourId || !toursData[activeTourId]) return;
+  if (!force && !pendingSave) return;
+  const tour = toursData[activeTourId];
+  const config = buildTourJson(tour);
+  setStatus('Сохранение...', 'warn');
+  try {
+    await API.request('PUT', `/api/tours/${activeTourId}/config`, config);
+    pendingSave = false;
+    setStatus('Сохранено', 'ok');
+    hideError();
+  } catch (err) {
+    setStatusError('Ошибка сохранения', saveCurrentTour);
+    showError('Ошибка сохранения: ' + err.message, () => saveCurrentTour(true));
+  }
+}
+
+function markDirty() {
+  pendingSave = true;
+  setStatus('Есть несохранённые изменения', 'warn');
+  if (autoSaveTimer) clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(() => saveCurrentTour(), 5000);
+}
+
+/* ============ TOUR TABS ============ */
+function renderTourTabs(){
+  const bar = el('tour-tabs');
+  bar.innerHTML = '';
+  tourOrder.forEach(id => {
+    const tab = document.createElement('div');
+    tab.className = 'tour-tab' + (id === activeTourId ? ' active' : '');
+    tab.textContent = toursData[id].title;
+    tab.addEventListener('click', () => loadTour(id));
+    bar.appendChild(tab);
+  });
+}
+
+el('btn-new-tour').addEventListener('click', () => {
+  openModal({
+    title: 'Новый тур',
+    bodyHtml: `<label>Название тура</label><input id="modal-tour-title" placeholder="Квартира на Ленина">`,
+    onOk: () => {
+      const title = el('modal-tour-title').value.trim();
+      if(!title){ alert('Введите название'); return false; }
+      createTourOnServer(title);
+      return true;
+    }
+  });
+});
+
+async function createTourOnServer(title) {
+  setStatus('Создание тура...', 'warn');
+  try {
+    const data = await API.request('POST', '/api/tours', { title });
+    const id = data.data.id;
+    toursData[id] = newTourObject(title);
+    tourOrder.push(id);
+    renderTourTabs();
+    selectTour(id);
+    setStatus('Тур создан', 'ok');
+  } catch (err) {
+    showError('Не удалось создать тур: ' + err.message, () => createTourOnServer(title));
+  }
+}
+
+function selectTour(id){
+  activeTourId = id;
+  activeSceneId = null;
+  renderTourTabs();
+  renderSceneList();
+  switchCenterTab(centerTab);
+  const tour = toursData[id];
+  if(tour && tour.sceneOrder.length > 0){
+    selectScene(tour.sceneOrder[0]);
+  } else {
+    clearSceneView();
+  }
+  renderMinimapPanel();
+}
+
+/* ============ SCENES ============ */
+el('btn-add-scene').addEventListener('click', async () => {
+  if(!activeTourId){ alert('Сначала создайте тур'); return; }
+  const files = Array.from(el('file-input').files || []);
+  if(files.length === 0){ alert('Выберите файл(ы) панорамы'); return; }
+
+  const tour = toursData[activeTourId];
+  let firstNewId = null;
+
+  for (const file of files) {
+    const sceneId = 'scene' + (tour.sceneCounter + 1);
+    const filename = safeFilename(file.name);
+    const form = new FormData();
+    form.append('file', file);
+    form.append('scene_id', sceneId);
+    setStatus(`Загрузка ${filename}...`, 'warn');
+    el('upload-progress').style.width = '0%';
+    try {
+      const resp = await API.upload('POST', `/api/tours/${activeTourId}/upload-photo`, form, pct => {
+        el('upload-progress').style.width = (pct * 100) + '%';
+      });
+      const uploaded = resp.data;
+      tour.sceneCounter++;
+      const title = file.name.replace(/\.[^.]+$/, '') || ('Точка ' + tour.sceneCounter);
+      tour.scenes[sceneId] = {
+        title,
+        panorama: uploaded.path,
+        dataUrl: uploaded.url,
+        hotSpots: []
+      };
+      tour.sceneOrder.push(sceneId);
+      tour.serverFiles.push(uploaded);
+      if (!firstNewId) firstNewId = sceneId;
+      el('upload-progress').style.width = '100%';
+      setStatus('Фото загружено', 'ok');
+    } catch (err) {
+      showError('Ошибка загрузки фото: ' + err.message, () => el('btn-add-scene').click());
+      return;
+    }
+  }
+  el('file-input').value = '';
+  renderSceneList();
+  if (firstNewId) selectScene(firstNewId);
+  markDirty();
+  renderFiles();
+});
+
+function renderSceneList(){
+  const list = el('scene-list');
+  list.innerHTML = '';
+  if(!activeTourId) return;
+  const tour = toursData[activeTourId];
+  tour.sceneOrder.forEach(id => {
+    const s = tour.scenes[id];
+    const row = document.createElement('div');
+    row.className = 'scene-row' + (id === activeSceneId ? ' active' : '');
+    row.innerHTML = `<div class="scene-thumb-sm" style="background-image:url('${s.dataUrl || s.panorama}')"></div>
+      <div class="scene-row-info"><div class="scene-row-title">${s.title}</div><div class="scene-row-id">${id}</div></div>`;
+    row.addEventListener('click', () => selectScene(id));
+    list.appendChild(row);
+  });
+}
+
+function clearSceneView(){
+  activeSceneId = null;
+  if(viewer){ viewer.destroy(); viewer = null; }
+  el('current-scene-title').textContent = 'Нет активной точки';
+  el('scene-fields').style.display = 'none';
+  el('no-scene-note').style.display = 'block';
+  el('empty-center').style.display = 'flex';
+  el('btn-hotspot-mode').style.display = 'none';
+}
+
+function selectScene(id){
+  activeSceneId = id;
+  renderSceneList();
+  const tour = toursData[activeTourId];
+  const s = tour.scenes[id];
+  el('current-scene-title').textContent = s.title;
+  el('scene-fields').style.display = 'block';
+  el('no-scene-note').style.display = 'none';
+  el('empty-center').style.display = 'none';
+  el('btn-hotspot-mode').style.display = centerTab === 'panorama' ? 'inline-flex' : 'none';
+  el('scene-title-input').value = s.title;
+  el('scene-path-input').value = s.panorama;
+
+  if(!s.dataUrl){
+    el('empty-center').style.display = 'flex';
+    el('empty-center').innerHTML = `<div style="font-size:32px;">📁</div><div>Изображение для этой точки не загружено.<br>Название файла: <code>${s.panorama.split('/').pop()}</code></div>`;
+    if(viewer){ viewer.destroy(); viewer = null; }
+    renderHotspotList();
+    return;
+  }
+  el('empty-center').style.display = 'none';
+
+  if(viewer){ viewer.destroy(); viewer = null; }
+  const hotSpotsForViewer = s.hotSpots.map((hs, idx) => ({
+    id: 'hs-' + idx, pitch: hs.pitch, yaw: hs.yaw, type: 'info', cssClass: 'hs-marker-wrap',
+    createTooltipFunc: (div) => { div.classList.add('hs-marker'); div.textContent = '→'; div.title = hs.text + ' → ' + hs.sceneId; }
+  }));
+
+  viewer = pannellum.viewer('panorama', {
+    type: 'equirectangular', panorama: s.dataUrl, autoLoad: true,
+    showZoomCtrl: true, showFullscreenCtrl: false, compass: true, hotSpots: hotSpotsForViewer
+  });
+
+  renderHotspotList();
+}
+
+el('scene-title-input').addEventListener('input', e => {
+  if(!activeSceneId) return;
+  toursData[activeTourId].scenes[activeSceneId].title = e.target.value;
+  el('current-scene-title').textContent = e.target.value;
+  renderSceneList();
+  markDirty();
+});
+
+el('btn-delete-scene').addEventListener('click', () => {
+  if(!activeSceneId) return;
+  const tour = toursData[activeTourId];
+  if(!confirm('Удалить точку «' + tour.scenes[activeSceneId].title + '»? Переходы к ней из других точек нужно будет поправить вручную.')) return;
+  delete tour.scenes[activeSceneId];
+  tour.sceneOrder = tour.sceneOrder.filter(id => id !== activeSceneId);
+  tour.minimap.points = tour.minimap.points.filter(p => p.sceneId !== activeSceneId);
+  if(tour.sceneOrder.length > 0){
+    selectScene(tour.sceneOrder[0]);
+  }else{
+    clearSceneView();
+  }
+  renderSceneList();
+  renderMinimapPanel();
+  markDirty();
+});
+
+/* ============ HOTSPOTS ============ */
+el('btn-hotspot-mode').addEventListener('click', () => {
+  hotspotMode = !hotspotMode;
+  el('btn-hotspot-mode').style.background = hotspotMode ? 'var(--accent)' : '';
+  el('btn-hotspot-mode').style.color = hotspotMode ? '#1a1200' : '';
+  el('hint').classList.toggle('show', hotspotMode);
+});
+
+document.getElementById('panorama').addEventListener('click', (e) => {
+  if(!hotspotMode || !viewer || !activeSceneId) return;
+  if(e.target.closest('.pnlm-hotspot') || e.target.closest('.pnlm-controls-container')) return;
+  const coords = viewer.mouseEventToCoords(e);
+  const pitch = coords[0], yaw = coords[1];
+  pickSceneModal({
+    title: 'Новый переход',
+    excludeSceneId: activeSceneId,
+    defaultLabel: '',
+    onConfirm: (targetId, label) => {
+      toursData[activeTourId].scenes[activeSceneId].hotSpots.push({ pitch, yaw, sceneId: targetId, text: label });
+      selectScene(activeSceneId);
+      markDirty();
+    }
+  });
+});
+
+function renderHotspotList(){
+  const wrap = el('hs-list');
+  wrap.innerHTML = '';
+  if(!activeSceneId) return;
+  const hs = toursData[activeTourId].scenes[activeSceneId].hotSpots;
+  if(hs.length === 0){
+    wrap.innerHTML = '<div class="note">Переходов пока нет. Включите режим добавления перехода и кликните по панораме.</div>';
+    return;
+  }
+  hs.forEach((h, idx) => {
+    const row = document.createElement('div');
+    row.className = 'hs-row';
+    row.innerHTML = `<span class="lbl">→ ${h.text} (${h.sceneId})</span>`;
+    const delBtn = document.createElement('button');
+    delBtn.textContent = '✕';
+    delBtn.addEventListener('click', () => {
+      toursData[activeTourId].scenes[activeSceneId].hotSpots.splice(idx, 1);
+      selectScene(activeSceneId);
+      markDirty();
+    });
+    row.appendChild(delBtn);
+    wrap.appendChild(row);
+  });
+}
+
+/* ============ CENTER TABS ============ */
+el('tab-panorama').addEventListener('click', () => switchCenterTab('panorama'));
+el('tab-minimap').addEventListener('click', () => switchCenterTab('minimap'));
+el('tab-files').addEventListener('click', () => switchCenterTab('files'));
+
+function switchCenterTab(tab){
+  centerTab = tab;
+  el('tab-panorama').classList.toggle('active', tab === 'panorama');
+  el('tab-minimap').classList.toggle('active', tab === 'minimap');
+  el('tab-files').classList.toggle('active', tab === 'files');
+  el('panorama-view').style.display = tab === 'panorama' ? 'block' : 'none';
+  el('minimap-view').style.display = tab === 'minimap' ? 'flex' : 'none';
+  el('files-view').style.display = tab === 'files' ? 'block' : 'none';
+  el('panel-panorama').style.display = tab === 'panorama' ? 'block' : 'none';
+  el('panel-minimap').style.display = tab === 'minimap' ? 'block' : 'none';
+  el('panel-files').style.display = tab === 'files' ? 'block' : 'none';
+  el('btn-hotspot-mode').style.display = (tab === 'panorama' && activeSceneId) ? 'inline-flex' : 'none';
+  if(tab === 'minimap') renderMinimapPanel();
+  if(tab === 'files') renderFiles();
+}
+
+/* ============ MINIMAP ============ */
+function renderMinimapPanel(){
+  const wrap = el('minimap-canvas-wrap');
+  wrap.innerHTML = '';
+  if(!activeTourId) return;
+  const tour = toursData[activeTourId];
+  const mm = tour.minimap;
+
+  if(!mm.imageDataUrl){
+    wrap.innerHTML = `<div id="minimap-empty">
+      <p>Для этого тура ещё не загружена схема/план.</p>
+      <input type="file" id="minimap-file-input" accept="image/*">
+    </div>`;
+    el('minimap-file-input').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if(!file) return;
+      const form = new FormData();
+      form.append('file', file);
+      setStatus('Загрузка миникарты...', 'warn');
+      try {
+        const resp = await API.upload('POST', `/api/tours/${activeTourId}/upload-minimap`, form);
+        mm.imageDataUrl = resp.data.url;
+        mm.imagePath = resp.data.path;
+        renderMinimapPanel();
+        markDirty();
+        setStatus('Миникарта загружена', 'ok');
+      } catch (err) {
+        showError('Ошибка загрузки миникарты: ' + err.message);
+      }
+    });
+    el('mm-list').innerHTML = '<div class="note">Сначала загрузите изображение схемы.</div>';
+    return;
+  }
+
+  const img = document.createElement('img');
+  img.id = 'minimap-canvas-img';
+  img.src = mm.imageDataUrl;
+  wrap.appendChild(img);
+
+  img.addEventListener('click', (e) => {
+    const rect = img.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    pickSceneModal({
+      title: 'Точка на миникарте',
+      excludeSceneId: null,
+      defaultLabel: '',
+      onConfirm: (sceneId, label) => {
+        mm.points.push({ sceneId, x, y, label });
+        renderMinimapPanel();
+        markDirty();
+      }
+    });
+  });
+
+  mm.points.forEach((p, idx) => {
+    const marker = document.createElement('div');
+    marker.className = 'mm-marker';
+    marker.style.left = p.x + '%';
+    marker.style.top = p.y + '%';
+    marker.textContent = idx + 1;
+    marker.title = p.label;
+    marker.addEventListener('click', (e) => e.stopPropagation());
+    wrap.appendChild(marker);
+  });
+
+  renderMinimapList();
+}
+
+function renderMinimapList(){
+  const tour = toursData[activeTourId];
+  const listEl = el('mm-list');
+  listEl.innerHTML = '';
+  if(tour.minimap.points.length === 0){
+    listEl.innerHTML = '<div class="note">Точек пока нет. Кликните по схеме слева.</div>';
+    return;
+  }
+  tour.minimap.points.forEach((p, idx) => {
+    const row = document.createElement('div');
+    row.className = 'hs-row';
+    row.innerHTML = `<span class="lbl">${idx+1}. ${p.label} → ${p.sceneId}</span>`;
+    const delBtn = document.createElement('button');
+    delBtn.textContent = '✕';
+    delBtn.addEventListener('click', () => {
+      tour.minimap.points.splice(idx, 1);
+      renderMinimapPanel();
+      markDirty();
+    });
+    row.appendChild(delBtn);
+    listEl.appendChild(row);
+  });
+}
+
+el('btn-change-minimap').addEventListener('click', () => {
+  if(!activeTourId) return;
+  toursData[activeTourId].minimap.imageDataUrl = null;
+  renderMinimapPanel();
+});
+
+/* ============ FILES TAB ============ */
+function renderFiles(){
+  const tour = activeTourId ? toursData[activeTourId] : null;
+  const files = tour ? (tour.serverFiles || []) : [];
+  const makeRow = (f) => {
+    const size = (f.size / 1024 / 1024).toFixed(2) + ' MB';
+    return `<div class="file-row">
+      <span class="name">${f.filename}</span>
+      <span class="size">${size}</span>
+      <button class="small" onclick="deleteFile('${f.filename}')">✕</button>
+    </div>`;
+  };
+  const html = files.length ? files.map(makeRow).join('') : '<div class="note">Нет загруженных файлов.</div>';
+  el('files-list').innerHTML = html;
+  el('files-panel-list').innerHTML = html;
+}
+
+async function deleteFile(filename){
+  if(!activeTourId) return;
+  if(!confirm('Удалить файл ' + filename + '?')) return;
+  try {
+    await API.request('DELETE', `/api/tours/${activeTourId}/photos/${filename}`);
+    await loadFiles(activeTourId);
+    // remove scene references if this file was used
+    const tour = toursData[activeTourId];
+    const url = `/tours/tour-${activeTourId}/photos/${filename}`;
+    Object.values(tour.scenes).forEach(s => {
+      if (s.dataUrl === url) s.dataUrl = null;
+    });
+    markDirty();
+    setStatus('Файл удалён', 'ok');
+  } catch (err) {
+    showError('Не удалось удалить файл: ' + err.message);
+  }
+}
+window.deleteFile = deleteFile;
+
+/* ============ IMPORT ============ */
+el('btn-import-tour-trigger').addEventListener('click', () => el('import-tour-input').click());
+el('import-tour-input').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = async ev => {
+    let parsed;
+    try{ parsed = JSON.parse(ev.target.result); }
+    catch(err){ alert('Не удалось прочитать JSON: ' + err.message); return; }
+
+    const defaultTitle = file.name.replace(/\.json$/i, '');
+    openModal({
+      title: 'Импорт тура',
+      bodyHtml: `<label>Название тура</label><input id="modal-import-title" value="${defaultTitle}">
+                 <div class="note">После импорта добавьте фото через «Добавить точку» — редактор загрузит их на сервер.</div>`,
+      onOk: () => {
+        const title = el('modal-import-title').value.trim() || defaultTitle;
+        createTourOnServer(title).then(() => {
+          const tour = toursData[activeTourId];
+          const sceneIds = Object.keys(parsed.scenes || {});
+          sceneIds.forEach(sid => {
+            const sc = parsed.scenes[sid];
+            const url = sc.panorama ? `/tours/tour-${activeTourId}/${sc.panorama}` : null;
+            tour.scenes[sid] = {
+              title: sc.title || sid,
+              panorama: sc.panorama || '',
+              dataUrl: url,
+              hotSpots: (sc.hotSpots || []).filter(h => h.type === 'scene').map(h => ({
+                pitch: h.pitch, yaw: h.yaw, sceneId: h.sceneId, text: h.text
+              }))
+            };
+            tour.sceneOrder.push(sid);
+          });
+          tour.sceneCounter = sceneIds.length;
+          if(parsed.minimap){
+            tour.minimap.imagePath = parsed.minimap.image || '';
+            tour.minimap.points = parsed.minimap.points || [];
+            if (tour.minimap.imagePath) tour.minimap.imageDataUrl = `/tours/tour-${activeTourId}/${tour.minimap.imagePath}`;
+          }
+          renderSceneList();
+          if (tour.sceneOrder.length > 0) selectScene(tour.sceneOrder[0]);
+          markDirty();
+        });
+        return true;
+      }
+    });
+  };
+  reader.readAsText(file);
+  el('import-tour-input').value = '';
+});
+
+/* ============ SAVE / DELETE / PUBLISH ============ */
+el('btn-save-now').addEventListener('click', () => saveCurrentTour(true));
+
+el('btn-publish').addEventListener('click', async () => {
+  await saveCurrentTour(true);
+  alert('Тур опубликован. Ссылка для просмотра: index.html?tour=' + activeTourId);
+});
+
+el('btn-delete-tour').addEventListener('click', async () => {
+  if(!activeTourId) return;
+  if(!confirm('Удалить тур «' + toursData[activeTourId].title + '» и все его файлы? Это необратимо.')) return;
+  try {
+    await API.request('DELETE', `/api/tours/${activeTourId}`);
+    delete toursData[activeTourId];
+    tourOrder = tourOrder.filter(id => id !== activeTourId);
+    activeTourId = null;
+    activeSceneId = null;
+    renderTourTabs();
+    clearSceneView();
+    renderSceneList();
+    setStatus('Тур удалён', 'ok');
+  } catch (err) {
+    showError('Не удалось удалить тур: ' + err.message);
+  }
+});
+
+/* ============ INIT ============ */
+loadTours();
+</script>
+</body>
+</html>

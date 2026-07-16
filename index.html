@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>360° Тур</title>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css">
+<script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
+
+<style>
+  :root{
+    --bg:        #0b0e14;
+    --panel:     rgba(18, 22, 32, 0.78);
+    --panel-solid: #12161f;
+    --panel-brd: rgba(255,255,255,0.09);
+    --text:      #eef0f4;
+    --text-dim:  #9aa2b1;
+    --accent:    #e8a33d;
+    --accent-dim:#a97324;
+  }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+  html,body{ margin:0; padding:0; height:100%; width:100%; background:var(--bg); font-family:'Inter', system-ui, sans-serif; color:var(--text); overflow:hidden; }
+
+  #panorama{ position:absolute; inset:0; }
+
+  #topbar{
+    position:absolute; top:0; left:0; right:0; z-index:20;
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 16px 20px;
+    pointer-events:none;
+    background:linear-gradient(to bottom, rgba(0,0,0,0.55), transparent);
+  }
+  #topbar-left{ pointer-events:auto; display:flex; align-items:center; gap:12px; }
+  #btn-back{
+    pointer-events:auto; cursor:pointer;
+    background:var(--panel); border:1px solid var(--panel-brd); color:var(--text);
+    border-radius:8px; padding:8px 10px; font-size:13px; display:none; align-items:center; gap:6px;
+  }
+  #btn-back:hover{ background:var(--panel-solid); }
+  #scene-label{ font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--text-dim); }
+  #scene-title{ font-size:21px; font-weight:700; letter-spacing:-0.01em; margin-top:2px; }
+  #topbar-right{ display:flex; align-items:center; gap:10px; pointer-events:auto; }
+  #btn-share{
+    cursor:pointer; background:var(--panel); border:1px solid var(--panel-brd); color:var(--text);
+    border-radius:8px; padding:9px 13px; font-size:13px; display:flex; align-items:center; gap:6px;
+  }
+  #btn-share:hover{ background:var(--panel-solid); border-color:var(--accent); }
+  #toast{
+    position:absolute; top:70px; left:50%; transform:translateX(-50%);
+    background:var(--accent); color:#1a1200; font-weight:700; font-size:13px;
+    padding:8px 16px; border-radius:20px; z-index:60;
+    opacity:0; pointer-events:none; transition:opacity .25s ease, transform .25s ease;
+  }
+  #toast.show{ opacity:1; transform:translateX(-50%) translateY(4px); }
+
+  #scene-strip{
+    position:absolute; left:0; right:0; bottom:0; z-index:15;
+    display:flex; gap:10px; padding:16px 20px 20px; overflow-x:auto;
+    background:linear-gradient(to top, rgba(0,0,0,0.6), transparent);
+    scrollbar-width:none;
+  }
+  #scene-strip::-webkit-scrollbar{ display:none; }
+  .scene-thumb{
+    flex:0 0 auto; width:96px; height:64px; border-radius:8px; border:2px solid var(--panel-brd);
+    background-size:cover; background-position:center; cursor:pointer; position:relative; overflow:hidden;
+    transition:border-color .15s ease, transform .15s ease; background-color:#1a1f2b;
+  }
+  .scene-thumb:hover{ transform:translateY(-3px); }
+  .scene-thumb.active{ border-color:var(--accent); }
+  .scene-thumb span{ position:absolute; left:0; right:0; bottom:0; font-size:10px; padding:3px 5px; background:rgba(0,0,0,0.6); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+  #minimap-wrap{
+    position:absolute; right:20px; bottom:112px; z-index:18;
+    width:170px;
+    border-radius:10px; overflow:hidden;
+    border:1.5px solid var(--panel-brd);
+    box-shadow:0 8px 26px rgba(0,0,0,0.45);
+    cursor:pointer;
+    transition:transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+    transform-origin: bottom right;
+    display:none;
+  }
+  #minimap-wrap.visible{ display:block; }
+  #minimap-wrap:hover{ transform:scale(1.18); box-shadow:0 12px 34px rgba(0,0,0,0.6); border-color:var(--accent); }
+  #minimap-inner{ position:relative; width:100%; aspect-ratio: 4/3; background:#1a1f2b; }
+  #minimap-img{ width:100%; height:100%; object-fit:cover; display:block; }
+  #minimap-label{
+    position:absolute; top:0; left:0; right:0; padding:5px 8px; font-size:9px;
+    text-transform:uppercase; letter-spacing:.08em; color:var(--text-dim);
+    background:linear-gradient(to bottom, rgba(0,0,0,0.65), transparent);
+  }
+  .mm-point{
+    position:absolute; width:12px; height:12px; border-radius:50%;
+    background:rgba(255,255,255,0.55); border:1.5px solid rgba(0,0,0,0.5);
+    transform:translate(-50%,-50%); cursor:pointer;
+  }
+  .mm-point.active{
+    width:16px; height:16px; background:var(--accent); border-color:#1a1200;
+    box-shadow:0 0 0 5px rgba(232,163,61,0.28);
+  }
+
+  #loading{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    flex-direction:column; gap:14px; background:var(--bg); z-index:50; transition:opacity .4s ease;
+  }
+  #loading.hidden{ opacity:0; pointer-events:none; }
+  .spinner{ width:34px; height:34px; border-radius:50%; border:3px solid var(--panel-brd); border-top-color:var(--accent); animation:spin 0.9s linear infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  #loading-text{ color:var(--text-dim); font-size:13px; letter-spacing:.08em; text-transform:uppercase; }
+
+  #empty-state{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    flex-direction:column; gap:10px; text-align:center; padding:20px; z-index:40;
+  }
+  #empty-state h1{ font-size:20px; margin:0; }
+  #empty-state p{ color:var(--text-dim); font-size:14px; max-width:440px; margin:0; }
+  code{ background:var(--panel-solid); padding:2px 6px; border-radius:4px; }
+
+  #selector{
+    position:absolute; inset:0; z-index:45; background:var(--bg);
+    display:none; flex-direction:column; align-items:center;
+    padding:60px 24px; overflow-y:auto;
+  }
+  #selector.visible{ display:flex; }
+  #selector h1{ font-size:26px; margin:0 0 6px; }
+  #selector p.sub{ color:var(--text-dim); margin:0 0 34px; font-size:14px; }
+  #tour-grid{
+    display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr));
+    gap:18px; width:100%; max-width:960px;
+  }
+  .tour-card{
+    background:var(--panel-solid); border:1px solid var(--panel-brd); border-radius:12px;
+    overflow:hidden; cursor:pointer; transition:transform .15s ease, border-color .15s ease;
+  }
+  .tour-card:hover{ transform:translateY(-4px); border-color:var(--accent); }
+  .tour-card .cover{ width:100%; height:140px; background-size:cover; background-position:center; background-color:#1a1f2b; }
+  .tour-card .info{ padding:12px 14px; }
+  .tour-card .title{ font-weight:700; font-size:15px; margin-bottom:2px; }
+  .tour-card .meta{ font-size:12px; color:var(--text-dim); }
+
+  .pnlm-load-box{ display:none !important; }
+  .pnlm-controls-container{ display:none; }
+  .nav-hotspot{
+    width:44px; height:44px; border-radius:50%; background:rgba(20,24,33,0.72);
+    border:1.5px solid var(--accent); display:flex; align-items:center; justify-content:center;
+    cursor:pointer; box-shadow:0 0 0 6px rgba(232,163,61,0.08); animation:pulse 2.4s ease-in-out infinite;
+  }
+  .nav-hotspot svg{ width:20px; height:20px; fill:var(--accent); }
+  @keyframes pulse{ 0%,100%{ box-shadow:0 0 0 6px rgba(232,163,61,0.08); } 50%{ box-shadow:0 0 0 12px rgba(232,163,61,0.02); } }
+  .nav-hotspot-label{
+    position:absolute; top:50px; left:50%; transform:translateX(-50%); font-size:11px; white-space:nowrap;
+    background:rgba(0,0,0,0.65); padding:3px 8px; border-radius:5px; color:var(--text); pointer-events:none;
+  }
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <div id="loading-text">Загрузка…</div>
+</div>
+
+<div id="empty-state" style="display:none;">
+  <h1>Тур не найден</h1>
+  <p>Проверьте адрес или создайте тур через <code>editor.html</code>.</p>
+</div>
+
+<div id="selector">
+  <h1>Выберите тур</h1>
+  <p class="sub">Нажмите на карточку, чтобы открыть 360° тур</p>
+  <div id="tour-grid"></div>
+</div>
+
+<div id="toast"></div>
+
+<div id="topbar">
+  <div id="topbar-left">
+    <div id="btn-back">← Все туры</div>
+    <div>
+      <div id="scene-label">Вы находитесь здесь</div>
+      <div id="scene-title">—</div>
+    </div>
+  </div>
+  <div id="topbar-right">
+    <div id="btn-share">🔗 Поделиться</div>
+  </div>
+</div>
+
+<div id="panorama"></div>
+
+<div id="minimap-wrap">
+  <div id="minimap-inner">
+    <div id="minimap-label">Схема / план</div>
+    <img id="minimap-img" alt="Схема тура">
+    <div id="minimap-points"></div>
+  </div>
+</div>
+
+<div id="scene-strip"></div>
+
+<script>
+const ARROW_SVG = `<svg viewBox="0 0 24 24"><path d="M12 2 L20 12 L14 12 L14 22 L10 22 L10 12 L4 12 Z"/></svg>`;
+
+let viewer = null;
+let tourConfig = null;
+let toursIndex = null;
+let currentTourId = null;
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+function sceneUrl(tourId, panorama) {
+  return panorama ? `/tours/tour-${tourId}/${panorama}` : panorama;
+}
+
+async function boot(){
+  const params = new URLSearchParams(location.search);
+  const requestedId = params.get('tour');
+
+  try{
+    const res = await fetch('/api/tours', {cache:'no-store'});
+    if(res.ok){
+      const body = await res.json();
+      toursIndex = body.data.tours || body.tours || [];
+    }
+  }catch(e){ /* ignore */ }
+
+  if(toursIndex && toursIndex.length > 0){
+    if(requestedId){
+      const entry = toursIndex.find(t => t.id === requestedId);
+      if(entry){ await openTour(entry); return; }
+    }
+    showSelector();
+    return;
+  }
+
+  document.getElementById('loading').classList.add('hidden');
+  document.getElementById('empty-state').style.display = 'flex';
+}
+
+function showSelector(){
+  document.getElementById('loading').classList.add('hidden');
+  const grid = document.getElementById('tour-grid');
+  grid.innerHTML = '';
+  toursIndex.forEach(entry => {
+    const coverUrl = entry.cover ? sceneUrl(entry.id, entry.cover) : '';
+    const card = document.createElement('div');
+    card.className = 'tour-card';
+    card.innerHTML = `
+      <div class="cover" style="background-image:url('${coverUrl}')"></div>
+      <div class="info">
+        <div class="title">${entry.title || entry.id}</div>
+        <div class="meta">${entry.id}</div>
+      </div>`;
+    card.addEventListener('click', () => {
+      const url = new URL(location.href);
+      url.searchParams.set('tour', entry.id);
+      history.pushState({}, '', url);
+      document.getElementById('selector').classList.remove('visible');
+      document.getElementById('loading').classList.remove('hidden');
+      openTour(entry);
+    });
+    grid.appendChild(card);
+  });
+  document.getElementById('selector').classList.add('visible');
+}
+
+async function openTour(entry){
+  currentTourId = entry.id;
+  try{
+    const res = await fetch(`/api/tours/${entry.id}/config`, {cache:'no-store'});
+    if(!res.ok) throw new Error('tour config not found');
+    const body = await res.json();
+    tourConfig = body.data;
+  }catch(e){
+    document.getElementById('loading').classList.add('hidden');
+    document.getElementById('empty-state').style.display = 'flex';
+    return;
+  }
+  document.getElementById('loading').classList.add('hidden');
+  document.getElementById('selector').classList.remove('visible');
+  if(toursIndex && toursIndex.length > 1){
+    document.getElementById('btn-back').style.display = 'flex';
+  }
+  initViewer();
+}
+
+document.getElementById('btn-back').addEventListener('click', () => {
+  if(viewer){ viewer.destroy(); viewer = null; }
+  document.getElementById('panorama').innerHTML = '';
+  document.getElementById('scene-strip').innerHTML = '';
+  document.getElementById('minimap-wrap').classList.remove('visible');
+  document.getElementById('btn-back').style.display = 'none';
+  const url = new URL(location.href);
+  url.searchParams.delete('tour');
+  history.pushState({}, '', url);
+  showSelector();
+});
+
+document.getElementById('btn-share').addEventListener('click', async () => {
+  try{
+    await navigator.clipboard.writeText(location.href);
+    showToast('Ссылка скопирована');
+  }catch(e){
+    showToast(location.href);
+  }
+});
+
+function initViewer(){
+  const rawScenes = tourConfig.scenes || {};
+  const sceneIds = Object.keys(rawScenes);
+  if(sceneIds.length === 0){
+    document.getElementById('empty-state').style.display = 'flex';
+    return;
+  }
+
+  const scenes = {};
+  Object.entries(rawScenes).forEach(([id, scene]) => {
+    scenes[id] = {...scene, panorama: sceneUrl(currentTourId, scene.panorama)};
+    (scenes[id].hotSpots || []).forEach(hs => {
+      if(hs.type === 'scene'){
+        hs.cssClass = 'nav-hotspot';
+        hs.createTooltipFunc = createNavHotspot;
+        hs.createTooltipArgs = hs.text || '';
+      }
+    });
+  });
+
+  viewer = pannellum.viewer('panorama', {
+    ...tourConfig.default,
+    scenes: scenes,
+    autoLoad: true,
+    showZoomCtrl: false,
+    showFullscreenCtrl: false,
+    compass: true,
+    hfov: 100,
+    sceneFadeDuration: 1000
+  });
+
+  viewer.on('load', () => { updateTopbar(); updateStrip(); updateMinimap(); });
+  viewer.on('scenechange', () => { updateTopbar(); updateStrip(); updateMinimap(); });
+
+  renderStrip(sceneIds);
+  setupMinimap();
+}
+
+function createNavHotspot(hotSpotDiv, args){
+  hotSpotDiv.innerHTML = ARROW_SVG;
+  if(args){
+    const label = document.createElement('div');
+    label.className = 'nav-hotspot-label';
+    label.textContent = args;
+    hotSpotDiv.appendChild(label);
+  }
+}
+
+function updateTopbar(){
+  const id = viewer.getScene();
+  const scene = tourConfig.scenes[id];
+  document.getElementById('scene-title').textContent = scene?.title || id;
+}
+
+function renderStrip(sceneIds){
+  const strip = document.getElementById('scene-strip');
+  strip.innerHTML = '';
+  sceneIds.forEach(id => {
+    const scene = tourConfig.scenes[id];
+    const thumb = document.createElement('div');
+    thumb.className = 'scene-thumb';
+    thumb.dataset.scene = id;
+    thumb.style.backgroundImage = `url("${sceneUrl(currentTourId, scene.panorama)}")`;
+    const span = document.createElement('span');
+    span.textContent = scene.title || id;
+    thumb.appendChild(span);
+    thumb.addEventListener('click', () => viewer.loadScene(id));
+    strip.appendChild(thumb);
+  });
+}
+
+function updateStrip(){
+  const id = viewer.getScene();
+  document.querySelectorAll('.scene-thumb').forEach(el => {
+    el.classList.toggle('active', el.dataset.scene === id);
+  });
+}
+
+function setupMinimap(){
+  const mm = tourConfig.minimap;
+  const wrap = document.getElementById('minimap-wrap');
+  if(!mm || !mm.image || !Array.isArray(mm.points) || mm.points.length === 0){
+    wrap.classList.remove('visible');
+    return;
+  }
+  document.getElementById('minimap-img').src = sceneUrl(currentTourId, mm.image);
+  const pointsLayer = document.getElementById('minimap-points');
+  pointsLayer.innerHTML = '';
+  mm.points.forEach(p => {
+    const dot = document.createElement('div');
+    dot.className = 'mm-point';
+    dot.dataset.scene = p.sceneId;
+    dot.style.left = p.x + '%';
+    dot.style.top = p.y + '%';
+    dot.title = p.label || tourConfig.scenes[p.sceneId]?.title || p.sceneId;
+    dot.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if(tourConfig.scenes[p.sceneId]) viewer.loadScene(p.sceneId);
+    });
+    pointsLayer.appendChild(dot);
+  });
+  wrap.classList.add('visible');
+  updateMinimap();
+}
+
+function updateMinimap(){
+  if(!viewer) return;
+  const id = viewer.getScene();
+  document.querySelectorAll('.mm-point').forEach(el => {
+    el.classList.toggle('active', el.dataset.scene === id);
+  });
+}
+
+boot();
+</script>
+
+</body>
+</html>
