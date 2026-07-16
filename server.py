@@ -35,7 +35,7 @@ TOUR_ID_RE = re.compile(r"^[a-zA-Z0-9_\-а-яёА-ЯЁ]+$")
 SAFE_NAME_RE = re.compile(r"[^A-Za-z0-9_.\-а-яёА-ЯЁ]+")
 SLUG_RE = re.compile(r"[^a-z0-9а-яё]+", re.IGNORECASE)
 
-MAX_FILE_SIZE_DEFAULT = 100 * 1024 * 1024  # 100 MB
+MAX_FILE_SIZE_DEFAULT = 200 * 1024 * 1024  # 200 MB
 ALLOWED_PHOTO_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif"}
 ALLOWED_MINIMAP_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif"}
 
@@ -576,12 +576,14 @@ class TourHandler(SimpleHTTPRequestHandler):
             return None, "INVALID_FILE"
         length = int(self.headers.get("Content-Length", 0))
         
-        if length > 10 * 1024 * 1024:
-            return None, "INVALID_FILE: multipart body too large"
+        max_multipart_size = self.server.manager.max_file_size + 1024 * 1024  # file size + 1MB overhead
+        
+        if length > max_multipart_size:
+            return None, f"INVALID_FILE: multipart body too large (max {max_multipart_size} bytes)"
         
         body = self.rfile.read(length)
         try:
-            result = parse_multipart_body(content_type, body)
+            result = parse_multipart_body(content_type, body, max_multipart_size)
             return result, None
         except Exception as exc:
             return None, f"INVALID_FILE: {exc}"

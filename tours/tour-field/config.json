@@ -1,0 +1,27 @@
+{
+  "title": "field",
+  "default": {
+    "firstScene": "scene1",
+    "sceneFadeDuration": 1000,
+    "autoLoad": true
+  },
+  "scenes": {
+    "scene1": {
+      "title": "18548",
+      "type": "equirectangular",
+      "panorama": "photos/18548.jpg",
+      "hotSpots": []
+    }
+  },
+  "minimap": {
+    "image": "minimap.jpg",
+    "points": [
+      {
+        "sceneId": "scene1",
+        "x": 50.02,
+        "y": 50.96,
+        "label": "test"
+      }
+    ]
+  }
+}
